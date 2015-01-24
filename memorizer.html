@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Memorizer Tool</title>
+    <script src="/vapor/jquery-2.1.1.js"></script>
+    <script src="js/memorizer.js"></script>
+    <link href='http://fonts.googleapis.com/css?family=Montserrat' rel='stylesheet' type='text/css'>
+    <link href='http://fonts.googleapis.com/css?family=PT+Mono' rel='stylesheet' type='text/css'>
+    <style>
+.content { float:left; font-family: 'Montserrat', sans-serif; margin: 10px 0 0 40px; }
+h1 { padding: 0; margin: 0 0 10px; font-size: 1.8em; }
+
+.letter { font-size: 1.5em; border-bottom: 1px solid #888; color: white; margin: 1px; cursor: pointer; }
+.space { font-size: 1.5em; color: white; margin: 1px; }
+.other { font-size: 1.5em; color: #ccc; margin: 1px; }
+.current { border-top: 1px dashed #00b; border-left: 1px dashed #00b; border-right: 1px dashed #00b; }
+.hint { color: #ccc; }
+.done { color: #800; }
+.button { cursor: pointer; text-decoration: underline; }
+.toolbar .button { padding-left: 10px; }
+.ctl { padding-left: 10px; }
+.textentry { display: none; border: 1px solid #ccc; padding: 30px 0 10px 30px; background: #f8f8fe; margin: 10px; }
+.textentry textarea { width: 600px; height: 150px; display: block; margin: 5px 0 }
+#matchField { margin-top: 20px; font-family: 'PT Mono';}
+.finished { display: none; font-size: 1.5em; color: #800; margin-top: 15px; }
+.output { padding: 0 30px 0 15px; border-left: 1px solid #ccc; }
+#maxGuesses { text-align: right; }
+.saved { display: none; background: white; border: 1px solid #ccc; margin: 0 0 12px 0; color: #444; font-size: .8em; padding: 5px; }
+.saved div { cursor: pointer; }
+.saved div:hover { background: #eee; }
+.nosaved { color: #999; }
+.help { font-size:.4em; vertical-align: middle; text-align: center; border-radius: 50%; color: #aaa; border: 2px solid #aaa; width: 15px; height: 15px; display: inline-block; cursor: pointer; }
+.helpText { display: none;  background-color: #f8f8fe; width: 400px; padding: 20px; margin: -3px 5px; border: 1px solid #444; font-size: .8em; }
+    </style>
+  </head>
+  <body id="top">
+    <div class="content">
+      <h1>Memorizer Tool <span class="help" onmouseover="memorizer.showHelp()" onmouseout="memorizer.hideHelp()">?</span></h1>
+      <div class="helpText">
+	A tool for helping memorize text.  Click 'Set Text' to input text to be memorized.  After hitting 'Done', underscores will appear for each letter in the text.  Try to remember and type the text.
+	As you type correct letters, the letter will appear.  Typing incorrect letter will cause the letter to appear but you cannot progess until you type it correctly.<p>
+	Text can be saved to local storage
+	for later use by entering a name next to the "save/load from" prompt.
+      </div>
+      <!-- toolbar -->
+      <div class="toolbar">
+	<span class="button" onclick='memorizer.showTextDlg();'>Set Text</span>
+	<span class="button" onclick='memorizer.reset();'>Reset</span>
+	<span class="ctl"><input id="maxGuesses" size="3" value="1" onfocus="memorizer.pause()" onblur="memorizer.setMaxGuesses()" tabindex="1" ><label> Guesses before showing</label></span>
+	<span class="ctl"><input type="checkbox" id="revealText" onclick="memorizer.setRevealText()"><label>Show Text</label>
+      </div>
+
+      <!-- text entry dialog -->
+      <div class="textentry">
+	<div>
+	  <label>save to/load from </label><input id="saveLoad" size="30" value="" onfocus="memorizer.showSaved()" onblur="memorizer.hideSaved()">
+	  <div class="saved"></div>
+	</div>
+	<textarea id="text" >
+	</textarea>
+	<input id="indicateSpaces" type="checkbox" checked onclick="memorizer.setIndicateSpaces()"><label>Show spaces and punctuation</label><p>
+	  <span class="button" onclick="memorizer.saveText();">Done</span>
+      </div>
+
+      <!-- output display -->
+      <div class="output" tabindex="2">
+	<div id="matchField">
+	</div>
+	<div class="finished">Finished!</div>
+      </div>
+<!--
+TODO:
+- reduce duplication
+- should have difficulties difficulty levels:
+1. show the text in gray
+2. show the next letter
+3. show after 1 try
+4. show after 3 tries
+5. don't show spaces or punctuation
+    -->
+    </div>
+  </body>
+</html>
