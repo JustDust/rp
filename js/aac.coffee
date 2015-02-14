@@ -2,14 +2,22 @@
 
 random = (limit) -> Math.floor(Math.random() * limit)
 
+stat_bar = (cur, max, ch, style) ->
+  $("<span>").addClass(style).text((ch for [0..Math.floor((cur/max)*10)]).join(""))
+  
 class Creature
-  stamina: 100
+  stamina: 50
   health: 10
   defence: 5
   offence: 5
+  
+  constructor: (@id) ->
 
   draw: () ->
-    console.log("draw something here")
+    stats = $("<div>").addClass("stats")
+    stats.append(stat_bar(@stamina, 50, "S", "stamina")).append("<br/>")
+    stats.append(stat_bar(@health, 10, "H", "health"))
+    $("#" + @id).html(stats)
 
 
 class AsciiAdventure
@@ -33,11 +41,7 @@ class AsciiAdventure
     x:11
     y:11
 
-  protagonist:
-    stamina: 100
-    health: 10
-    defence: 5
-    offence: 5
+  protagonist: new Creature("protagonist")
 
   startMap: []
 
@@ -130,12 +134,14 @@ class AsciiAdventure
       $('.row' + @windowBottom()).remove()
       @movePos(0, -1)
       $('.map').prepend(@createTileRow(@windowTop()))
+      @onMove()
 
   moveMapUp: ->
     if @canMove(0,1)
       $('.row' + @windowTop()).remove()
       @movePos(0, 1)
       $('.map').append(@createTileRow(@windowBottom()))
+      @onMove()
 
   moveMapLeft: ->
     if @canMove(1,0)
@@ -148,6 +154,7 @@ class AsciiAdventure
         rowNum = row.className.match(/row(\d+)/)[1]
         tile = @lookupTile(rightCol, rowNum)
         $(row).append(@createTileCell(rightCol, tile)))
+      @onMove()
 
   moveMapRight: ->
     if @canMove(-1,0)
@@ -160,17 +167,38 @@ class AsciiAdventure
         rowNum = row.className.match(/row(\d+)/)[1]
         tile = @lookupTile(leftCol, rowNum)
         $(row).prepend(@createTileCell(leftCol, tile)))
+      @onMove()
 
   handleKeyPress: (evt) ->
-    switch evt.key
-      when "Up" then @moveMapDown()
-      when "Down" then @moveMapUp()
-      when "Right" then @moveMapLeft()
-      when "Left" then @moveMapRight()
+    switch evt.which
+      when 37 then @moveMapRight() # left arrow
+      when 38 then @moveMapDown()  # up arrow
+      when 39 then @moveMapLeft()  # right arrow
+      when 40 then @moveMapUp()    # down arrow
 
+  onMove: ->
+    tile = @lookupTile(@curPos.x, @curPos.y)
+    @protagonist.stamina -= tile.move
+    @protagonist.draw()
+    
+  tick: ->
+#    console.log("tick")
+    if (@protagonist.stamina < 49)
+      @protagonist.stamina += 2
+      @protagonist.draw()
+    setTimeout(
+      () => @tick()
+      1000
+    )
+    
   init: ->
     @startMap = @genRandomMap()
     @drawMap()
-    $("#top").on("keypress", (e) => @handleKeyPress(e) )
+    $("#top").on("keydown", (e) => @handleKeyPress(e) )
+    @protagonist.draw()
+    setTimeout(
+      () => @tick()
+      1000
+    )
 
 $(window).load( -> window.aa = new AsciiAdventure(); window.aa.init() )
