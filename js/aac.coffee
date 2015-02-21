@@ -3,23 +3,41 @@
 random = (limit) -> Math.floor(Math.random() * limit)
 
 stat_bar = (cur, max, ch, style) ->
-  $("<span>").addClass(style).text((ch for [0..Math.floor((cur/max)*10)]).join(""))
+  $("<span>").addClass(style).text((ch for [0...Math.ceil((cur/max)*10)]).join(""))
   
 class Creature
-  stamina: 50
-  health: 10
-  defence: 5
-  offence: 5
   
-  constructor: (@id) ->
+  constructor: (@id, @baseStyle, stamina, health, offence, defence, pos) ->
+    @maxStamina = @stamina = stamina
+    @maxHealth = @health = health
+    @offence = offence
+    @defence = defence
+    @pos = pos
+    @dead = false
 
-  draw: () ->
+  draw: ->
     stats = $("<div>").addClass("stats")
-    stats.append(stat_bar(@stamina, 50, "S", "stamina")).append("<br/>")
-    stats.append(stat_bar(@health, 10, "H", "health"))
+    stats.append(stat_bar(@stamina, 50, "-", "stamina")).append("<br/>")
+    stats.append(stat_bar(@health, 10, "-", "health"))
     $("#" + @id).html(stats)
+    
+  mapMarker: ->
+    if @dead then "X" else "U"
 
+  style: ->
+    @baseStyle
 
+  damageHealth: (amount) ->
+    @health = Math.max(@health - amount, 0)
+    if @health <= 0
+      @die()
+      
+  die: () ->
+    @dead = true
+    @maxStamina = 0
+    @maxHealth = 0
+
+    
 class AsciiAdventure
 
   mapSize:
@@ -33,17 +51,15 @@ class AsciiAdventure
     { style: 'stone', text: '#', move: 1000 }
   ]
 
-  curPos:
-    x: 50
-    y: 50
-
   windowSize:
     x:11
     y:11
 
-  protagonist: new Creature("protagonist")
+  protagonist: new Creature("protagonist", "curPos", 50, 10, 5, 5, { x: 50, y:50 })
 
   startMap: []
+  
+  mapObjects: []
 
   genRiver: (map) ->
     length = 0
@@ -72,40 +88,44 @@ class AsciiAdventure
     @genRiver(map) for [0...((random(5) + 1) * 3)]
     map
 
-  windowLeft: -> @curPos.x - Math.floor(@windowSize.x / 2)
+  windowLeft: -> @protagonist.pos.x - Math.floor(@windowSize.x / 2)
 
-  windowRight: -> @curPos.x + Math.floor(@windowSize.x / 2)
+  windowRight: -> @protagonist.pos.x + Math.floor(@windowSize.x / 2)
 
-  windowTop: -> @curPos.y - Math.floor(@windowSize.y / 2)
+  windowTop: -> @protagonist.pos.y - Math.floor(@windowSize.y / 2)
 
-  windowBottom: -> @curPos.y + Math.floor(@windowSize.y / 2)
+  windowBottom: -> @protagonist.pos.y + Math.floor(@windowSize.y / 2)
 
-  getCurPosCell: -> $('.row' + @curPos.y + ' .col' + @curPos.x)
+  getCell: (pos) -> $('.row' + pos.y + ' .col' + pos.x)
 
-  drawCurPos: ->
-    cell = @getCurPosCell()
-    cellTile = @lookupTile(@curPos.x, @curPos.y)
+  drawObjects: ->
+    for obj in @mapObjects
+      @drawObject(obj)
+  
+  drawObject: (obj) ->
+    cell = @getCell(obj.pos)
+    cellTile = @lookupTile(obj.pos.x, obj.pos.y)
     cell.removeClass(cellTile.style)
-    cell.addClass('curPos')
-    cell.text('U')
-
+    cell.addClass(obj.style())
+    cell.text(obj.mapMarker())    
+    
   movePos: (deltaX, deltaY) ->
-    oldCellTile = @lookupTile(@curPos.x, @curPos.y)
-    oldCell = @getCurPosCell()
-    oldCell.removeClass('curPos')
+    oldCellTile = @lookupTile(@protagonist.pos.x, @protagonist.pos.y)
+    oldCell = @getCell(@protagonist.pos)
+    oldCell.removeClass(@protagonist.style())
     oldCell.addClass(oldCellTile.style)
     oldCell.text(oldCellTile.text)
 
-    @curPos.x += deltaX
-    @curPos.y += deltaY
+    @protagonist.pos.x += deltaX
+    @protagonist.pos.y += deltaY
 
-    @drawCurPos();
+    @drawObject(@protagonist);
 
   lookupTile: (x, y) ->  @tileMap[@startMap[y][x]]
 
-  canMove: (deltaX, deltaY) ->
-    tile = @lookupTile(@curPos.x + deltaX, @curPos.y + deltaY)
-    tile.move <= @protagonist.stamina;
+  canMove: (creature, deltaX, deltaY) ->
+    tile = @lookupTile(creature.pos.x + deltaX, creature.pos.y + deltaY)
+    tile.move <= creature.stamina;
 
   createTileCell: (x, tile) ->
     $('<span>').addClass('tile').addClass(tile.style).addClass('col' + x).text(tile.text)
@@ -113,38 +133,38 @@ class AsciiAdventure
   createTileRow: (y) ->
     tileRow = @startMap[y]
     row = $('<div>').addClass('mapRow').addClass('row' + y)
-    for x in [@windowLeft()...@windowRight()]
+    for x in [@windowLeft()..@windowRight()]
       tile = @lookupTile(x, y)
       row.append(@createTileCell(x, tile))
     row
 
   drawTiles: ->
     map = $('<div>').addClass('map')
-    for y in [@windowTop()...@windowBottom()]
+    for y in [@windowTop()..@windowBottom()]
       row = @createTileRow(y)
       map.append(row)
     $('#mapContainer').html(map)
 
   drawMap: ->
     @drawTiles()
-    @drawCurPos()
+    @drawObject(@protagonist)
 
   moveMapDown: ->
-    if @canMove(0,-1)
+    if @canMove(@protagonist, 0,-1)
       $('.row' + @windowBottom()).remove()
       @movePos(0, -1)
       $('.map').prepend(@createTileRow(@windowTop()))
       @onMove()
 
   moveMapUp: ->
-    if @canMove(0,1)
+    if @canMove(@protagonist, 0 ,1)
       $('.row' + @windowTop()).remove()
       @movePos(0, 1)
       $('.map').append(@createTileRow(@windowBottom()))
       @onMove()
 
   moveMapLeft: ->
-    if @canMove(1,0)
+    if @canMove(@protagonist, 1,0)
       $('.col' + @windowLeft()).remove()
       @movePos(1, 0)
       rightCol = @windowRight()
@@ -157,7 +177,7 @@ class AsciiAdventure
       @onMove()
 
   moveMapRight: ->
-    if @canMove(-1,0)
+    if @canMove(@protagonist, -1,0)
       $('.col' + @windowRight()).remove()
       @movePos(-1, 0)
       leftCol = @windowLeft()
@@ -177,15 +197,24 @@ class AsciiAdventure
       when 40 then @moveMapUp()    # down arrow
 
   onMove: ->
-    tile = @lookupTile(@curPos.x, @curPos.y)
+    tile = @lookupTile(@protagonist.pos.x, @protagonist.pos.y)
     @protagonist.stamina -= tile.move
     @protagonist.draw()
+
     
   tick: ->
 #    console.log("tick")
-    if (@protagonist.stamina < 49)
-      @protagonist.stamina += 2
-      @protagonist.draw()
+    tile = @lookupTile(@protagonist.pos.x, @protagonist.pos.y)
+    if tile.style == "water"
+      if @protagonist.stamina > 0
+        @protagonist.stamina -= 1
+      if @protagonist.stamina <= 0
+        @protagonist.damageHealth(1)
+        if @protagonist.dead
+          @drawMap()
+    else if @protagonist.stamina < 50
+      @protagonist.stamina = Math.min(@protagonist.stamina + 3, @protagonist.maxStamina)
+    @protagonist.draw()
     setTimeout(
       () => @tick()
       1000
