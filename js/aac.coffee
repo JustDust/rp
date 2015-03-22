@@ -4,21 +4,36 @@ random = (limit) -> Math.floor(Math.random() * limit)
 
 stat_bar = (cur, max, ch, style) ->
   $("<span>").addClass(style).text((ch for [0...Math.ceil((cur/max)*10)]).join(""))
+
+item_list = (items, onclick) ->
+  console.log(items)
+  itemList = $("<span>").addClass("itemlist")
+  for i in items
+    itemList.append($("<span>").addClass("item").on("click", onclick).text(i.tile.text))
+  console.log(itemList)
+  itemList
   
+class Item
+  constructor: (options) ->
+    {@id, @mapMarkerCh, @baseStyle, @pos} = options
+  tile: -> { style: @baseStyle, text: @mapMarkerCh, move: 1 }
+  style: -> @baseStyle
+  mapMarker: -> @mapMarkerCh
+      
 class Creature
   
-  constructor: (@id, @baseStyle, stamina, health, offence, defence, pos) ->
-    @maxStamina = @stamina = stamina
-    @maxHealth = @health = health
-    @offence = offence
-    @defence = defence
-    @pos = pos
+  constructor: (options) ->
+    {@id, @baseStyle, @stamina, @health, @offence, @deffence, @pos} = options
+    @maxStamina = @stamina
+    @maxHealth = @health
     @dead = false
+    @inventory = []
 
   draw: ->
     stats = $("<div>").addClass("stats")
     stats.append(stat_bar(@stamina, 50, "-", "stamina")).append("<br/>")
     stats.append(stat_bar(@health, 10, "-", "health"))
+    stats.append(item_list(@inventory, (item) -> @useItem(item)))
     $("#" + @id).html(stats)
     
   mapMarker: ->
@@ -27,6 +42,8 @@ class Creature
   style: ->
     @baseStyle
 
+  tile: -> { style: @baseStyle, text: @mapMarker() }
+  
   damageHealth: (amount) ->
     @health = Math.max(@health - amount, 0)
     if @health <= 0
@@ -36,6 +53,14 @@ class Creature
     @dead = true
     @maxStamina = 0
     @maxHealth = 0
+
+  take: (mapObj) ->
+    # TODO: right now you can take anything!
+    console.log("taking " + mapObj)
+    @inventory.push(mapObj)
+
+  useItem: (mapObj) ->
+    console.log("using " + mapObj)
 
     
 class AsciiAdventure
@@ -55,12 +80,35 @@ class AsciiAdventure
     x:11
     y:11
 
-  protagonist: new Creature("protagonist", "curPos", 50, 10, 5, 5, { x: 50, y:50 })
+  protagonist: new Creature({
+    id: "protagonist"
+    baseStyle: "curPos"
+    stamina: 50
+    health: 10
+    offence: 5
+    defence: 5
+    pos: { x: 50, y:50 }})
 
   startMap: []
   
-  mapObjects: []
+  mapObjects: {}
+  
+  mapObjectKey: (pos) -> pos.x + "_" + pos.y
 
+  placeObject: (obj, placeOk) ->
+    for i in [0..50]
+      x = random(@mapSize.x)
+      y = random(@mapSize.y)
+      if placeOk(@lookupTile(x,y))
+        obj.pos.x = x
+        obj.pos.y = y
+        break
+
+  genFood: (id) ->
+    food = new Item({ id: "food"+id, mapMarkerCh: "o", baseStyle:"food", pos: { x:0, y:0 }})
+    @placeObject(food, (tile) -> tile.style != "tree")
+    @mapObjects[@mapObjectKey(food.pos)] = food
+      
   genRiver: (map) ->
     length = 0
     maxLength = 100
@@ -99,18 +147,25 @@ class AsciiAdventure
   getCell: (pos) -> $('.row' + pos.y + ' .col' + pos.x)
 
   drawObjects: ->
-    for obj in @mapObjects
+    for key, obj of @mapObjects
       @drawObject(obj)
   
   drawObject: (obj) ->
     cell = @getCell(obj.pos)
-    cellTile = @lookupTile(obj.pos.x, obj.pos.y)
-    cell.removeClass(cellTile.style)
-    cell.addClass(obj.style())
-    cell.text(obj.mapMarker())    
+    if cell?
+      cellTile = @lookupTile(obj.pos.x, obj.pos.y)
+      if cellTile?
+        cell.removeClass(cellTile.style)
+        cell.addClass(obj.style())
+        cell.text(obj.mapMarker())    
     
   movePos: (deltaX, deltaY) ->
     oldCellTile = @lookupTile(@protagonist.pos.x, @protagonist.pos.y)
+    mapObj = @lookupObject(@protagonist.pos.x, @protagonist.pos.y)
+    if mapObj?
+      if not @protagonist.take(mapObj)
+        oldCellTile = mapObj.tile()
+        @protagonist.draw()
     oldCell = @getCell(@protagonist.pos)
     oldCell.removeClass(@protagonist.style())
     oldCell.addClass(oldCellTile.style)
@@ -123,11 +178,16 @@ class AsciiAdventure
 
   lookupTile: (x, y) ->  @tileMap[@startMap[y][x]]
 
+  lookupObject: (x, y) -> @mapObjects[@mapObjectKey({ x: x, y: y })]
+  
   canMove: (creature, deltaX, deltaY) ->
     tile = @lookupTile(creature.pos.x + deltaX, creature.pos.y + deltaY)
     tile.move <= creature.stamina;
 
-  createTileCell: (x, tile) ->
+  createTileCell: (x, y, tile) ->
+    mapObj = @lookupObject(x, y)
+    if mapObj?
+      tile = mapObj.tile()
     $('<span>').addClass('tile').addClass(tile.style).addClass('col' + x).text(tile.text)
 
   createTileRow: (y) ->
@@ -135,7 +195,7 @@ class AsciiAdventure
     row = $('<div>').addClass('mapRow').addClass('row' + y)
     for x in [@windowLeft()..@windowRight()]
       tile = @lookupTile(x, y)
-      row.append(@createTileCell(x, tile))
+      row.append(@createTileCell(x, y, tile))
     row
 
   drawTiles: ->
@@ -173,7 +233,7 @@ class AsciiAdventure
         row = mapRow[i]
         rowNum = row.className.match(/row(\d+)/)[1]
         tile = @lookupTile(rightCol, rowNum)
-        $(row).append(@createTileCell(rightCol, tile)))
+        $(row).append(@createTileCell(rightCol, rowNum, tile)))
       @onMove()
 
   moveMapRight: ->
@@ -186,7 +246,7 @@ class AsciiAdventure
         row = mapRow[i]
         rowNum = row.className.match(/row(\d+)/)[1]
         tile = @lookupTile(leftCol, rowNum)
-        $(row).prepend(@createTileCell(leftCol, tile)))
+        $(row).prepend(@createTileCell(leftCol, rowNum, tile)))
       @onMove()
 
   handleKeyPress: (evt) ->
@@ -214,7 +274,7 @@ class AsciiAdventure
           @drawMap()
     else if @protagonist.stamina < 50
       @protagonist.stamina = Math.min(@protagonist.stamina + 3, @protagonist.maxStamina)
-    @protagonist.draw()
+    #@protagonist.draw()
     setTimeout(
       () => @tick()
       1000
@@ -223,6 +283,8 @@ class AsciiAdventure
   init: ->
     @startMap = @genRandomMap()
     @drawMap()
+    @genFood(i) for i in [0..100]
+    @drawObjects()
     $("#top").on("keydown", (e) => @handleKeyPress(e) )
     @protagonist.draw()
     setTimeout(
